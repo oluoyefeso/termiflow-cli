@@ -8,6 +8,9 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/oluoyefeso/termiflow-cli/internal/providers"
+	"github.com/oluoyefeso/termiflow-cli/internal/providers/llm"
 )
 
 // ManagedSearchProvider calls the termiflow backend proxy instead of Tavily directly.
@@ -67,10 +70,30 @@ func (p *ManagedSearchProvider) Search(ctx context.Context, req SearchRequest) (
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpReq.Header.Set("X-Termiflow-Version", llm.CLIVersion)
 
-	resp, err := p.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("managed search: request failed: %w", err)
+	var resp *http.Response
+	for attempt := 0; ; attempt++ {
+		resp, err = p.client.Do(httpReq)
+		if err != nil {
+			return nil, fmt.Errorf("managed search: request failed: %w", err)
+		}
+		if !providers.IsRetryable(resp.StatusCode) || attempt >= providers.MaxRetries() {
+			break
+		}
+		resp.Body.Close()
+		delay := providers.RetryDelay(attempt, resp)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
+		httpReq, err = http.NewRequestWithContext(ctx, "POST", p.baseURL+"/v1/search", bytes.NewReader(jsonBody))
+		if err != nil {
+			return nil, err
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
 	}
 	defer resp.Body.Close()
 

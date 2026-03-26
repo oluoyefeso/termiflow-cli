@@ -55,6 +55,28 @@ termiflow ask "What changed in Rust 1.82?"
 
 Sign up at [termiflow.com](https://termiflow.com) to get your `tf_xxx` API key.
 
+## Contributing
+
+### Mock mode
+
+For development without real API calls, use mock mode:
+
+```bash
+TERMIFLOW_MOCK=true go run -tags mock ./cmd/termiflow feed --refresh
+TERMIFLOW_MOCK=true go run -tags mock ./cmd/termiflow ask "test question"
+```
+
+Mock providers return canned responses so you can develop and test UI changes without
+hitting the backend or spending API credits.
+
+### Running tests
+
+```bash
+go test ./...                    # all tests
+go test -race ./...              # with race detector
+go test -v ./internal/cli/...    # specific package
+```
+
 ## Self-hosting
 
 Want to bring your own Anthropic and Tavily keys? Use the [self-hosted version](https://github.com/oluoyefeso/termiflow) instead.

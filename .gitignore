@@ -1,3 +1,33 @@
+# Environment / secrets
 .env
+.env.*
+
+# Binary
 /termiflow
+
+# Data
 *.db
+*.db-journal
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go
+vendor/
+*.test
+*.out
+coverage.html
+dist/
+
+# Claude
+.claude
+CLAUDE.md

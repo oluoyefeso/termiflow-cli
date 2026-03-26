@@ -1,0 +1,140 @@
+# GoReleaser configuration for termiflow-cli
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: termiflow-cli
+    main: ./cmd/termiflow
+    binary: termiflow
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.Commit={{.ShortCommit}}
+      - -X main.Date={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: oluoyefeso
+    name: termiflow-cli
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## termiflow-cli {{ .Tag }}
+
+    Managed CLI for termiflow — zero-config terminal news.
+  footer: |
+    ---
+
+    ### Installation
+
+    **Using Go:**
+    ```bash
+    go install github.com/oluoyefeso/termiflow-cli/cmd/termiflow@{{ .Tag }}
+    ```
+
+    **Using Homebrew (macOS/Linux):**
+    ```bash
+    brew install termiflow/tap/termiflow-cli
+    ```
+
+    **Manual download:**
+    Download the appropriate binary for your platform from the assets below.
+
+brews:
+  - name: termiflow-cli
+    repository:
+      owner: oluoyefeso
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/oluoyefeso/termiflow-cli"
+    description: "Managed CLI for termiflow — zero-config terminal news"
+    license: "GPL-3.0"
+    skip_upload: true
+    test: |
+      system "#{bin}/termiflow", "version"
+    install: |
+      bin.install "termiflow"
+
+nfpms:
+  - id: packages
+    package_name: termiflow-cli
+    vendor: termiflow
+    homepage: https://github.com/oluoyefeso/termiflow-cli
+    maintainer: termiflow <termiflow@example.com>
+    description: Managed CLI for termiflow — zero-config terminal news
+    license: GPL-3.0
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+
+announce:
+  skip: true

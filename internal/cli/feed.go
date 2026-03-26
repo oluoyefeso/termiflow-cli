@@ -2,9 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -73,7 +76,13 @@ func runFeed(cmd *cobra.Command, args []string) error {
 	// Handle refresh
 	if feedRefresh {
 		if err := refreshFeeds(cfg, feedTopic); err != nil {
-			fmt.Print(ui.Error(fmt.Sprintf("Refresh failed: %v", err)))
+			if isOfflineError(err) {
+				fmt.Println()
+				fmt.Print(ui.Warning("Offline — showing cached feed."))
+				fmt.Println()
+			} else {
+				fmt.Print(ui.Error(fmt.Sprintf("Refresh failed: %v", err)))
+			}
 			// Continue to show existing items
 		}
 	}
@@ -229,6 +238,24 @@ func cleanupOldItems() error {
 		fmt.Print(ui.Success(fmt.Sprintf("Removed %d items older than 30 days", count)))
 	}
 	return nil
+}
+
+func isOfflineError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	// Check for common network failure patterns
+	for _, pattern := range []string{"request failed", "no such host", "connection refused", "network is unreachable", "i/o timeout"} {
+		if strings.Contains(msg, pattern) {
+			return true
+		}
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
 }
 
 func refreshFeeds(cfg *config.Config, topicFilter string) error {

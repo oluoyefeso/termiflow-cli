@@ -3,10 +3,12 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -69,12 +71,19 @@ var configSetCmd = &cobra.Command{
 	},
 }
 
+var configValidateCmd = &cobra.Command{
+	Use:   "validate",
+	Short: "Validate API key by making a test request to the backend",
+	RunE:  runConfigValidate,
+}
+
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configEditCmd)
 	configCmd.AddCommand(configPathCmd)
 	configCmd.AddCommand(configGetCmd)
 	configCmd.AddCommand(configSetCmd)
+	configCmd.AddCommand(configValidateCmd)
 
 	configCmd.Flags().Bool("edit", false, "Open config file in $EDITOR")
 }
@@ -346,4 +355,45 @@ func runConfigEdit(cmd *cobra.Command, args []string) error {
 	editorCmd.Stderr = os.Stderr
 
 	return editorCmd.Run()
+}
+
+func runConfigValidate(cmd *cobra.Command, args []string) error {
+	cfg := config.Get()
+
+	apiKey := cfg.Providers.Managed.APIKey
+	if apiKey == "" {
+		return fmt.Errorf("no managed API key configured — run 'termiflow config init'")
+	}
+
+	baseURL := cfg.Providers.Managed.BaseURL
+	if baseURL == "" {
+		baseURL = "https://api.termiflow.com"
+	}
+
+	sp := ui.NewSpinner("Validating API key...")
+	sp.Start()
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", baseURL+"/health", nil)
+	if err != nil {
+		sp.Error("Failed to create request")
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		sp.Error(fmt.Sprintf("Cannot reach backend: %v", err))
+		return fmt.Errorf("backend unreachable at %s", baseURL)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		sp.Success(fmt.Sprintf("Backend reachable at %s — key configured", baseURL))
+	} else {
+		sp.Error(fmt.Sprintf("Backend returned %s", resp.Status))
+		return fmt.Errorf("health check failed with status %s", resp.Status)
+	}
+
+	return nil
 }
